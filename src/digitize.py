@@ -52,8 +52,21 @@ def copy_file_structure(src: str, dst: str) -> None:
         os.makedirs(target_dir, exist_ok=True)
 
 
+def pdf_to_image(file_path: str) -> torch.Tensor:
+    try: 
+        import pdf2image
+    except ImportError:
+        raise ImportError("Please install pdf2image: `pip install pdf2image`")
+
+    images = pdf2image.convert_from_path(file_path)
+    return torch.from_numpy(np.array(images[0])).permute(2, 0, 1)
+
+
 def decode_and_prepare_image(file_path: str) -> torch.Tensor:
-    image: torch.Tensor = decode_image(file_path, mode="RGB")
+    if file_path[-3:].lower() == "pdf":
+        image = pdf_to_image(file_path)
+    else:
+        image: torch.Tensor = decode_image(file_path, mode="RGB")
     C, H, W = image.shape
     if C == 1:
         image = image.expand(3, H, W)
