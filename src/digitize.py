@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from torchvision.io import decode_image
 from tqdm import tqdm
 from yacs.config import CfgNode as CN
@@ -127,17 +129,47 @@ def save_matching_cost(got_values: dict[str, Any], output_basepath: str) -> None
     with open(metadata_file, "a") as f:
         file_name = os.path.basename(output_basepath)
         matching_cost = got_values.get("signal", {}).get("layout_matching_cost", float("nan"))
-        is_flipped = got_values.get("is_flipped", False)
+        is_flipped = got_values.get("is_flipped", got_values["signal"].get("layout_is_flipped", False))
         lead_layout = got_values.get("layout_name", "")
         f.write(f"{file_name},{matching_cost},{is_flipped},{lead_layout}\n")
 
 
-def save_outputs(got_values: dict[str, Any], output_basepath: str, save_mode: str = "all") -> None:
+def plot_overlay(got_values: dict[str, Any], dpi=150) -> tuple[Figure, Axes]:
+    img = got_values["aligned"]["image"].squeeze().permute(1, 2, 0).cpu().numpy() * 0.999
+    canonical_pixels = got_values["signal"]["canonical_pixels"]
+    xstart = got_values["signal"]["xstart"]
+    if got_values["signal"]["layout_is_flipped"].lower() == "true":
+        img = np.rot90(img, 2)
+        lines = got_values["signal"]["raw_lines"]
+        xstart = img.shape[1] - canonical_pixels.shape[1] - xstart
+        lines_max = lines[~torch.isnan(lines)].max()
+        canonical_pixels = canonical_pixels - lines_max + img.shape[0]
+    fig = plt.figure(dpi=dpi)
+    ax = plt.gca()
+    ax.set_prop_cycle(color=plt.get_cmap("tab20").colors)  # type: ignore
+    plt.imshow(img)
+    for line in canonical_pixels:
+        x = np.arange(len(line)) + xstart
+        plt.plot(x, line, alpha=0.75, linewidth=1.0)
+    return fig, ax
+
+def save_overlay_plot(
+    got_values: dict[str, Any], output_basepath: str, dpi: int = 150
+) -> None:
+    fig, _ = plot_overlay(got_values, dpi=dpi)
+    fig.savefig(output_basepath + "_overlay.jpg", bbox_inches="tight")
+    plt.close()
+
+def save_outputs(
+    got_values: dict[str, Any], output_basepath: str, save_mode: str = "all"
+) -> None:
     canonical = canonical_from_got_values(got_values)
     if save_mode in ["all", "timeseries_only"]:
         save_timeseries_csv(canonical, output_basepath)
     if save_mode in ["all", "png_only"]:
         save_png_plot(got_values, canonical, output_basepath)
+    if save_mode in ["all", "overlay_only"]:
+        save_overlay_plot(got_values, output_basepath)
     save_matching_cost(got_values, output_basepath)
 
 
