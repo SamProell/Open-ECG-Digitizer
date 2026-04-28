@@ -119,7 +119,7 @@ class InferenceWrapper(Module):
                 aligned_signal_prob = self.dewarper.transform(aligned_signal_prob.squeeze())
 
         with timed_section("Signal extraction", self.times):
-            signals = self.signal_extractor(aligned_signal_prob.squeeze())
+            signals, xstart = self.signal_extractor(aligned_signal_prob.squeeze())
 
         self._print_profiling_results()
 
@@ -149,6 +149,8 @@ class InferenceWrapper(Module):
             },
             "signal": {
                 "raw_lines": signals.cpu(),
+                "xstart": xstart,
+                "canonical_pixels": layout.get("canonical_pixels", None),
                 "canonical_lines": layout.get("canonical_lines", None),
                 "lines": layout.get("lines", None),
                 "layout_matching_cost": layout_cost,

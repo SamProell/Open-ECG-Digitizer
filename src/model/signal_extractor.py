@@ -45,23 +45,23 @@ class SignalExtractor:
         self.min_line_width = min_line_width
         self.num_peaks = None
 
-    def __call__(self, feature_map: torch.Tensor) -> torch.Tensor:
+    def __call__(self, feature_map: torch.Tensor) -> tuple[torch.Tensor, int]:
         fmap = feature_map.cpu().clone()
         lines_list = self._iterative_extraction(fmap)
         self.num_peaks = self._autodetect_num_peaks(fmap)
         lines_list = [ln for ln in lines_list if (~torch.isnan(ln)).sum() > self.min_line_width]
         if len(lines_list) == 0:
-            return torch.empty((0, feature_map.shape[1]), dtype=torch.float32)
+            return torch.empty((0, feature_map.shape[1]), dtype=torch.float32), 0
         lines = torch.stack(lines_list, dim=0)
-        merged_lines_list, overlaps = self.match_and_merge_lines(lines)
+        merged_lines_list, overlaps, first = self.match_and_merge_lines(lines)
         if len(merged_lines_list) == 0:
-            return torch.empty((0, feature_map.shape[1]), dtype=torch.float32)
+            return torch.empty((0, feature_map.shape[1]), dtype=torch.float32), 0
         merged_lines = torch.stack(merged_lines_list, dim=0)
         if self.num_peaks != len(merged_lines):
             print(
                 f"Warning: Number of peaks ({self.num_peaks}) does not match number of merged lines ({len(merged_lines)})."
             )
-        return merged_lines
+        return merged_lines, first
 
     def _iterative_extraction(self, fmap: torch.Tensor) -> list[torch.Tensor]:
         for it in range(self.max_iterations):
@@ -213,12 +213,12 @@ class SignalExtractor:
 
         return most_common_value
 
-    def preprocess_lines(self, lines: torch.Tensor) -> torch.Tensor:
+    def preprocess_lines(self, lines: torch.Tensor) -> tuple[torch.Tensor, int]:
         lines = lines.clone()
         lines[lines == 0] = float("nan")
         valid_cols = lines.nan_to_num(0.0).abs().sum(0) > 0
         first, last = torch.nonzero(valid_cols, as_tuple=True)[0][[0, -1]].tolist()
-        return lines[:, first : last + 1]
+        return lines[:, first : last + 1], first
 
     def extract_endpoints(self, lines: torch.Tensor) -> tuple[list[int], list[int], list[float], list[float]]:
         xmin: list[int] = []
@@ -348,8 +348,10 @@ class SignalExtractor:
         plt.savefig(f"sandbox/{title.replace(' ', '_').casefold()}.png")
         plt.close()
 
-    def match_and_merge_lines(self, lines: torch.Tensor) -> tuple[list[torch.Tensor], list[float]]:
-        lines = self.preprocess_lines(lines)
+    def match_and_merge_lines(
+        self, lines: torch.Tensor
+    ) -> tuple[list[torch.Tensor], list[float], int]:
+        lines, xstart = self.preprocess_lines(lines)
         if self.debug:
             self.plot_lines(lines, "Preprocessed Lines")
         min_coords, max_coords, heights, W = self.extract_graph_params(lines)
@@ -369,4 +371,4 @@ class SignalExtractor:
         if self.debug:
             self.plot_graph(min_coords, max_coords, row_ind, col_ind)
 
-        return filtered_lines, overlaps
+        return filtered_lines, overlaps, xstart

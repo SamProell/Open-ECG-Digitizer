@@ -457,6 +457,7 @@ class LeadIdentifier:
         layout_should_include_substring: Optional[str] = None,
     ) -> dict[str, Any]:
         lines = self._merge_nonoverlapping_lines(lines)
+        raw_lines = lines.clone()
         lines = -self.normalize(lines, avg_pixel_per_mm, mv_per_mm)
         layouts = self.layouts.copy()
 
@@ -486,11 +487,13 @@ class LeadIdentifier:
             match["layout"] = list(layouts.keys())[0]
 
         canonical_lines = self._canonicalize_lines(lines.clone(), match)
+        canonical_pixels = self._canonicalize_lines(raw_lines, match)
 
         return {
             "rows_in_layout": rows_in_layout,
             "n_detected": len(detected),
             **match,
             "canonical_lines": canonical_lines,
+            "canonical_pixels": canonical_pixels,
             "lines": lines,
         }
