@@ -99,7 +99,7 @@ def save_timeseries_csv(canonical: torch.Tensor | None, output_basepath: str) ->
     np.savetxt(output_basepath + "_timeseries_canonical.csv", data, delimiter=",", header=header, comments="")
 
 
-def save_png_plot(got_values: dict[str, Any], canonical: torch.Tensor | None, output_basepath: str) -> None:
+def make_plot(got_values: dict[str, Any], canonical: torch.Tensor | None):
     fig, axs = plt.subplots(2, 2, figsize=(20, 14))
     axs[0, 0].imshow(got_values["input_image"].squeeze().permute(1, 2, 0).cpu().numpy() * 0.999)
     source_points = got_values["source_points"]
@@ -128,8 +128,12 @@ def save_png_plot(got_values: dict[str, Any], canonical: torch.Tensor | None, ou
         got_values.get("layout_name", "") + " Layout cost: " + f'{got_values["signal"]["layout_matching_cost"]:.2f}',
         fontsize=16,
     )
-    plt.savefig(output_basepath + ".png", dpi=200)
-    plt.close()
+    return fig, axs
+
+def save_png_plot(got_values: dict[str, Any], canonical: torch.Tensor | None, output_basepath: str):
+    fig, axs = make_plot(got_values, canonical=canonical)
+    fig.savefig(output_basepath + ".png", dpi=200)
+    plt.close(fig)
 
 
 def save_matching_cost(got_values: dict[str, Any], output_basepath: str) -> None:
